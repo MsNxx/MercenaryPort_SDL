@@ -472,13 +472,13 @@ static void HandleGrounded(Camera &cam)
 	if (input & 0x02)
 	{
 		// sub_0487CE: forward thrust
-		uint32_t d2 = LogMultiply(thrustConfig, cam.sinHeading);
-		uint32_t d3 = LogMultiply(thrustConfig, cam.cosHeading);
+		uint32_t velXLog = LogMultiply(thrustConfig, cam.sinHeading);
+		uint32_t velZLog = LogMultiply(thrustConfig, cam.cosHeading);
 
 		// $048806-$048836: LogFloatToInt + EXT.L truncation
 		// The original does EXT.L on all paths, clamping to int16_t
-		int32_t dx = static_cast<int16_t>(LogFloatToScreen(d2));
-		int32_t dz = static_cast<int16_t>(LogFloatToScreen(d3));
+		int32_t dx = static_cast<int16_t>(LogFloatToScreen(velXLog));
+		int32_t dz = static_cast<int16_t>(LogFloatToScreen(velZLog));
 
 		cam.posX += dx;
 		cam.posZ += dz;
@@ -488,16 +488,16 @@ static void HandleGrounded(Camera &cam)
 	if (input & 0x01)
 	{
 		// sub_0487CC: NEG.W D1, fall through to sub_0487CE
-		uint32_t d1neg = thrustConfig;
-		uint16_t lo =
-			static_cast<uint16_t>(-static_cast<int16_t>(d1neg & 0xFFFF));
-		d1neg = (d1neg & 0xFFFF0000u) | lo;
+		uint32_t negThrustConfig = thrustConfig;
+		uint16_t lo = static_cast<uint16_t>(
+			-static_cast<int16_t>(negThrustConfig & 0xFFFF));
+		negThrustConfig = (negThrustConfig & 0xFFFF0000u) | lo;
 
-		uint32_t d2 = LogMultiply(d1neg, cam.sinHeading);
-		uint32_t d3 = LogMultiply(d1neg, cam.cosHeading);
+		uint32_t velXLog = LogMultiply(negThrustConfig, cam.sinHeading);
+		uint32_t velZLog = LogMultiply(negThrustConfig, cam.cosHeading);
 
-		int32_t dx = static_cast<int16_t>(LogFloatToScreen(d2));
-		int32_t dz = static_cast<int16_t>(LogFloatToScreen(d3));
+		int32_t dx = static_cast<int16_t>(LogFloatToScreen(velXLog));
+		int32_t dz = static_cast<int16_t>(LogFloatToScreen(velZLog));
 
 		cam.posX += dx;
 		cam.posZ += dz;

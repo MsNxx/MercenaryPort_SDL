@@ -50,9 +50,13 @@ static void TemplateWalk(uint8_t cmdByte, uint8_t dataX, uint8_t dataZ,
 		return;
 	const uint8_t *tpl = &gen_e1::INTERIOR_TEMPLATES[tmplOff];
 
-	uint16_t a4 = g_workspace.roomVertHW;
-	uint16_t a5 = g_workspace.roomEdgeHW;
-	uint16_t d5 = a4;
+	// High-water marks stored in bytes; slot index = bytes >> 2
+	uint16_t vertHighWater = g_workspace.roomVertHW;
+	uint16_t edgeHighWater = g_workspace.roomEdgeHW;
+
+	// Pair-walking cursor.  Starts at the current vertex high-water mark
+	// so the edge-pair loop below sees only vertices added by this template
+	uint16_t edgePairCursor = vertHighWater;
 
 	while (true)
 	{
@@ -61,8 +65,8 @@ static void TemplateWalk(uint8_t cmdByte, uint8_t dataX, uint8_t dataZ,
 			break;
 		uint8_t yByte = *tpl++;
 
-		a4 += 4;
-		int idx = a4 >> 2;
+		vertHighWater += 4;
+		int idx = vertHighWater >> 2;
 		if (idx >= Workspace::ROOM_SLOT_MAX)
 			break;
 
@@ -73,21 +77,22 @@ static void TemplateWalk(uint8_t cmdByte, uint8_t dataX, uint8_t dataZ,
 									 (isFloor ? static_cast<int32_t>(attr) : 0);
 	}
 
-	// E1:6400-6408: pairwise edge connections
-	d5 += 4;
-	while (d5 < a4)
+	// E1:6400-6408: pairwise edge connections -- for each adjacent pair
+	// of newly added vertices, emit an edge
+	edgePairCursor += 4;
+	while (edgePairCursor < vertHighWater)
 	{
-		a5 += 4;
-		int eIdx = a5 >> 2;
+		edgeHighWater += 4;
+		int eIdx = edgeHighWater >> 2;
 		if (eIdx >= Workspace::ROOM_SLOT_MAX)
 			break;
-		g_workspace.edgeA[eIdx] = d5;
-		d5 += 4;
-		g_workspace.edgeB[eIdx] = d5;
+		g_workspace.edgeA[eIdx] = edgePairCursor;
+		edgePairCursor += 4;
+		g_workspace.edgeB[eIdx] = edgePairCursor;
 	}
 
-	g_workspace.roomVertHW = a4;
-	g_workspace.roomEdgeHW = a5;
+	g_workspace.roomVertHW = vertHighWater;
+	g_workspace.roomEdgeHW = edgeHighWater;
 }
 
 // sub_044B5A (E1:6204-6326) + loc_044D64 (E1:6328-6411)
