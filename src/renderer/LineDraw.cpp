@@ -7,6 +7,11 @@
 
 #include <utility>
 
+// Bresenham accumulator starts at 0.5 so the first minor-axis step is taken
+// after half a major-axis unit of travel.  The carry-out (bit 16 after
+// 16-bit addition) signals the minor-axis step
+static constexpr uint16_t BRESENHAM_ACCUM_INIT = 0x8000;
+
 // Pixel write matching the original's BSET/BCLR octant routines
 // BSET (E2:$060BBE): BSET D1,(A1)           -- sets 1 bitplane bit
 // BCLR (E2:$060CDC): BCLR D1,(A1); +2; BCLR -- clears 2 bitplane bits
@@ -42,7 +47,7 @@ static void Octant0_XpYp_Xmaj(uint8_t *buf, int x, int y, uint16_t slope,
 							  int endX, int /*endY*/, LineMode mode)
 {
 	int sentinelY = VIEWPORT_H; // MOVE.W #$D500,D6
-	uint16_t accum = 0x8000;
+	uint16_t accum = BRESENHAM_ACCUM_INIT;
 	for (;;)
 	{
 		if (x >= 0 && x < FB_WIDTH && y >= 0 && y < VIEWPORT_H)
@@ -79,7 +84,7 @@ static void Octant1_XpYp_Ymaj(uint8_t *buf, int x, int y, uint16_t slope,
 							  int /*endX*/, int endY, LineMode mode)
 {
 	int sentinelX = FB_WIDTH;
-	uint16_t accum = 0x8000;
+	uint16_t accum = BRESENHAM_ACCUM_INIT;
 	for (;;)
 	{
 		if (x >= 0 && x < FB_WIDTH && y >= 0 && y < VIEWPORT_H)
@@ -116,7 +121,7 @@ static void Octant2_XmYp_Ymaj(uint8_t *buf, int x, int y, uint16_t slope,
 							  int /*endX*/, int endY, LineMode mode)
 {
 	int sentinelX = -1;
-	uint16_t accum = 0x8000;
+	uint16_t accum = BRESENHAM_ACCUM_INIT;
 	for (;;)
 	{
 		if (x >= 0 && x < FB_WIDTH && y >= 0 && y < VIEWPORT_H)
@@ -153,7 +158,7 @@ static void Octant3_XmYp_Xmaj(uint8_t *buf, int x, int y, uint16_t slope,
 							  int endX, int /*endY*/, LineMode mode)
 {
 	int sentinelY = VIEWPORT_H;
-	uint16_t accum = 0x8000;
+	uint16_t accum = BRESENHAM_ACCUM_INIT;
 	for (;;)
 	{
 		if (x >= 0 && x < FB_WIDTH && y >= 0 && y < VIEWPORT_H)
@@ -190,7 +195,7 @@ static void Octant4_XmYm_Xmaj(uint8_t *buf, int x, int y, uint16_t slope,
 							  int endX, int /*endY*/, LineMode mode)
 {
 	int sentinelY = -1;
-	uint16_t accum = 0x8000;
+	uint16_t accum = BRESENHAM_ACCUM_INIT;
 	for (;;)
 	{
 		if (x >= 0 && x < FB_WIDTH && y >= 0 && y < VIEWPORT_H)
@@ -227,7 +232,7 @@ static void Octant5_XmYm_Ymaj(uint8_t *buf, int x, int y, uint16_t slope,
 							  int /*endX*/, int endY, LineMode mode)
 {
 	int sentinelX = -1;
-	uint16_t accum = 0x8000;
+	uint16_t accum = BRESENHAM_ACCUM_INIT;
 	for (;;)
 	{
 		if (x >= 0 && x < FB_WIDTH && y >= 0 && y < VIEWPORT_H)
@@ -264,7 +269,7 @@ static void Octant6_XpYm_Ymaj(uint8_t *buf, int x, int y, uint16_t slope,
 							  int /*endX*/, int endY, LineMode mode)
 {
 	int sentinelX = FB_WIDTH;
-	uint16_t accum = 0x8000;
+	uint16_t accum = BRESENHAM_ACCUM_INIT;
 	for (;;)
 	{
 		if (x >= 0 && x < FB_WIDTH && y >= 0 && y < VIEWPORT_H)
@@ -301,7 +306,7 @@ static void Octant7_XpYm_Xmaj(uint8_t *buf, int x, int y, uint16_t slope,
 							  int endX, int /*endY*/, LineMode mode)
 {
 	int sentinelY = -1;
-	uint16_t accum = 0x8000;
+	uint16_t accum = BRESENHAM_ACCUM_INIT;
 	for (;;)
 	{
 		if (x >= 0 && x < FB_WIDTH && y >= 0 && y < VIEWPORT_H)

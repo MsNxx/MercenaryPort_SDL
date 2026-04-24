@@ -19,6 +19,9 @@ enum FlightHandler
 	HANDLER_INTERSTELLAR,
 };
 
+// 10-bit angle domain: roll/pitch/heading wrap modulo $400 after every update
+static constexpr uint16_t ANGLE_WRAP_MASK = 0x03FF;
+
 struct FlightParams
 {
 	FlightHandler handler;
@@ -47,6 +50,10 @@ struct FlightParams
 };
 
 // 11 flight states, extracted from E1 binary at $04637E
+// Columns:       handler, param4, param8w, paramAw, paramCw, paramEw, param14, param1A, param1C
+//   THRUST/WALK: handler, thrustMul, accelHi, accelLo, pitchRate, rollRateAdd, zMul, groundClearance, vertVelMul
+//   GRAVITY:     handler, yGravity,  rollDelta, pitchDelta, headingDelta, (unused), 0, 0, 0
+//   DESCENT:     handler, (unused),  rollDelta, pitchDelta, headingDelta, (unused), 0, 0, 0
 static const FlightParams FLIGHT_TABLE[] = {
 	// State 0: standard flying (hovering).  $04637E -> $0482D2
 	{HANDLER_THRUST, 0xFFFF1E00, 0x0000, 0x1000, 0x0008, 0x0002, 0xFFFF1000,
@@ -136,9 +143,9 @@ static void HandleDescent(Camera &cam, const FlightParams &fp)
 	// $04827E-$0482B4: add angle deltas from parameter block
 	// A0+8 = roll delta ($062348), A0+10 = pitch delta ($06234A), A0+12 =
 	// heading delta
-	cam.roll = (cam.roll + fp.param8w) & 0x3FF;
-	cam.pitch = (cam.pitch + fp.paramAw) & 0x3FF;
-	cam.heading = (cam.heading + fp.paramCw) & 0x3FF;
+	cam.roll = (cam.roll + fp.param8w) & ANGLE_WRAP_MASK;
+	cam.pitch = (cam.pitch + fp.paramAw) & ANGLE_WRAP_MASK;
+	cam.heading = (cam.heading + fp.paramCw) & ANGLE_WRAP_MASK;
 }
 
 // State 9: gravity-only ($048264)
@@ -158,30 +165,40 @@ static void HandleGravity(Camera &cam, const FlightParams &fp)
 	cam.posY = y;
 
 	// $04827E-$0482B4: angle deltas
-	cam.roll = (cam.roll + fp.param8w) & 0x3FF;
-	cam.pitch = (cam.pitch + fp.paramAw) & 0x3FF;
-	cam.heading = (cam.heading + fp.paramCw) & 0x3FF;
+	cam.roll = (cam.roll + fp.param8w) & ANGLE_WRAP_MASK;
+	cam.pitch = (cam.pitch + fp.paramAw) & ANGLE_WRAP_MASK;
+	cam.heading = (cam.heading + fp.paramCw) & ANGLE_WRAP_MASK;
 }
 
-// Landing pad proximity check (sub_048724)
+// Palyar Colony Craft pad proximity check (sub_048724)
+// The colony craft hovers at tile (8,8) at altitude ~65000 (HUD units)
 
 static bool NearLandingPad(const Camera &cam)
 {
-	// $048724-$04875E
-	uint32_t dy = static_cast<uint32_t>(cam.posY - 0x0040FB00);
-	if (dy >= 0x0440)
+	// Colony-craft landing box: lower corner + per-axis extent.
+	// The unsigned-subtract idiom (posY - PAD_ORIGIN_Y) >= PAD_Y_EXTENT
+	// catches both "below min" (wraps to a huge unsigned) and "above max" in
+	// one compare.  From $048724-$04875E
+	constexpr int32_t PAD_ORIGIN_X = 0x00086800;
+	constexpr int32_t PAD_ORIGIN_Y = 0x0040FB00;
+	constexpr int32_t PAD_ORIGIN_Z = 0x00086800;
+	constexpr uint32_t PAD_XZ_EXTENT = 0x1000;
+	constexpr uint32_t PAD_Y_EXTENT = 0x0440;
+
+	uint32_t dy = static_cast<uint32_t>(cam.posY - PAD_ORIGIN_Y);
+	if (dy >= PAD_Y_EXTENT)
 	{
 		return false;
 	}
 
-	uint32_t dx = static_cast<uint32_t>(cam.posX - 0x00086800);
-	if (dx >= 0x1000)
+	uint32_t dx = static_cast<uint32_t>(cam.posX - PAD_ORIGIN_X);
+	if (dx >= PAD_XZ_EXTENT)
 	{
 		return false;
 	}
 
-	uint32_t dz = static_cast<uint32_t>(cam.posZ - 0x00086800);
-	if (dz >= 0x1000)
+	uint32_t dz = static_cast<uint32_t>(cam.posZ - PAD_ORIGIN_Z);
+	if (dz >= PAD_XZ_EXTENT)
 	{
 		return false;
 	}
@@ -228,11 +245,11 @@ static void HandleThrust(Camera &cam, const FlightParams &fp)
 	uint16_t pitchRate = fp.paramCw;
 	if (!(input & 0x02))
 	{
-		cam.pitch = (cam.pitch + pitchRate) & 0x3FF;
+		cam.pitch = (cam.pitch + pitchRate) & ANGLE_WRAP_MASK;
 	}
 	if (!(input & 0x01))
 	{
-		cam.pitch = (cam.pitch - pitchRate) & 0x3FF;
+		cam.pitch = (cam.pitch - pitchRate) & ANGLE_WRAP_MASK;
 	}
 
 	// $04841C-$0484D2: vertical velocity computation

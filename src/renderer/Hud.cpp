@@ -8,15 +8,24 @@
 #include "game/Workspace.h"
 #include "renderer/FrameBuffer.h"
 
+// Bitplane scanline stride in the original framebuffer layout.  40 bytes per
+// plane * 4 planes = 160 bytes per scanline, interleaved as word-pairs
+static constexpr int BITPLANE_STRIDE = 160;
+
+// HUD indicator origin offsets, relative to screen bank base ($8000)
+// Each is the byte offset of the top-left byte of that indicator's cell
+static constexpr int HUD_LOCATION_OFFSET = 0x5D45;
+static constexpr int HUD_ALTITUDE_OFFSET = 0x5D6C;
+static constexpr int HUD_SPEED_OFFSET = 0x5D8D;
+static constexpr int HUD_ELEV_STRIP_OFFSET = 0x5D2C;
+
 // Bitplane byte writer -- translates MOVE.B at a bitplane byte offset
 // into palette index bit operations in our indexed framebuffer
 
 static void WriteBitplaneByte(uint8_t *indexBuf, int screenOff, uint8_t val)
 {
-	constexpr int STRIDE = 160;
-
-	int scanline = screenOff / STRIDE;
-	int byteInLine = screenOff % STRIDE;
+	int scanline = screenOff / BITPLANE_STRIDE;
+	int byteInLine = screenOff % BITPLANE_STRIDE;
 	int wordGroup = byteInLine / 8;
 	int byteInGroup = byteInLine % 8;
 	int plane = byteInGroup / 2; // 0-3
@@ -67,12 +76,12 @@ static void Sub043826(uint8_t *indexBuf, int glyphIndex, int &a0)
 	WriteBitplaneByte(indexBuf, a0, glyph[0]);
 	a0++;
 
-	// E1:4109-4112: rows 1-4 at offsets 159, 319, 479, 639 from A0
-	// (which has already been incremented by 1)
-	WriteBitplaneByte(indexBuf, a0 + 159, glyph[1]);
-	WriteBitplaneByte(indexBuf, a0 + 319, glyph[2]);
-	WriteBitplaneByte(indexBuf, a0 + 479, glyph[3]);
-	WriteBitplaneByte(indexBuf, a0 + 639, glyph[4]);
+	// E1:4109-4112: rows 1-4.  A0 has already been stepped by 1, so the
+	// displacement to row N is N * stride - 1
+	for (int row = 1; row < 5; row++)
+	{
+		WriteBitplaneByte(indexBuf, a0 + row * BITPLANE_STRIDE - 1, glyph[row]);
+	}
 
 	// E1:4113-4119: check if A0 is even.  If even, skip 6
 	if ((a0 & 1) == 0)
@@ -100,7 +109,7 @@ static void Sub043866(uint8_t *indexBuf, int glyphIndex, int &a0)
 	// Rows 1-4: same pattern, -4 from glyph position
 	for (int row = 1; row < 5; row++)
 	{
-		int glyphPos = glyphByte0 + row * 160;
+		int glyphPos = glyphByte0 + row * BITPLANE_STRIDE;
 		WriteBitplaneByte(indexBuf, glyphPos, 0x7F);
 		WriteBitplaneByte(indexBuf, glyphPos - 4, glyph[row] ^ 0x7F);
 	}
@@ -130,7 +139,7 @@ static void Sub0438CC(uint8_t *indexBuf, int glyphIndex, int &a0)
 	// Rows 1-4: same -4 displacement from the glyph byte position
 	for (int row = 1; row < 5; row++)
 	{
-		int glyphPos = glyphByte0 + row * 160;
+		int glyphPos = glyphByte0 + row * BITPLANE_STRIDE;
 		WriteBitplaneByte(indexBuf, glyphPos, glyph[row]);
 		WriteBitplaneByte(indexBuf, glyphPos - 4, 0x00);
 	}
@@ -199,8 +208,8 @@ static void Sub04384E(uint8_t *indexBuf, int16_t d1, int &a0)
 static void RenderLocation(uint8_t *indexBuf, int32_t posX, int32_t posZ)
 {
 	// E1:4029-4030: LEA $DD45(A5), A0
-	// A5 = screen bank base.  $DD45 - $8000 = $5D45
-	int a0 = 0x5D45;
+	// A5 = screen bank base.  $DD45 - $8000 = HUD_LOCATION_OFFSET
+	int a0 = HUD_LOCATION_OFFSET;
 
 	// E1:4031: MOVE.W ($0623A6), D1 -- high word of posX
 	int16_t d1 = static_cast<int16_t>(posX >> 16);
@@ -224,7 +233,7 @@ static void RenderLocation(uint8_t *indexBuf, int32_t posX, int32_t posZ)
 static void RenderAltitude(uint8_t *indexBuf, int32_t posY)
 {
 	// E1:4014: LEA $DD6C(A5), A0
-	int a0 = 0x5D6C;
+	int a0 = HUD_ALTITUDE_OFFSET;
 
 	// E1:4017: MOVE.L ($0623AA), D2 -- altitude
 	uint32_t d2 = static_cast<uint32_t>(posY);
@@ -259,7 +268,7 @@ static void RenderAltitude(uint8_t *indexBuf, int32_t posY)
 static void RenderSpeed(uint8_t *indexBuf, uint32_t vertVelocity)
 {
 	// $043770: LEA $DD8D(A5), A0
-	int a0 = 0x5D8D;
+	int a0 = HUD_SPEED_OFFSET;
 
 	// $043776: MOVE.L ($062344), D3
 	// Track D3 as a full 32-bit register, operating on words/bytes as the
@@ -483,14 +492,13 @@ static void RenderElevation(uint8_t *indexBuf, uint16_t pitch)
 	// E1:4470-4472: original selects the back buffer; caller passes VBLTarget
 
 	// E1:4473-4505: write 32 longwords to consecutive scanlines
-	// Destination offsets: $5D2C, $5DCC, $5E6C, ... stepping by $A0
-	int destOff = 0x5D2C;
+	int destOff = HUD_ELEV_STRIP_OFFSET;
 	for (int row = 0; row < 32; row++)
 	{
 		uint32_t lw = (data[row * 4] << 24) | (data[row * 4 + 1] << 16) |
 					  (data[row * 4 + 2] << 8) | data[row * 4 + 3];
 		WriteBitplaneLong(indexBuf, destOff, lw);
-		destOff += 0xA0; // next scanline
+		destOff += BITPLANE_STRIDE;
 	}
 }
 

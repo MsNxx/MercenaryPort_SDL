@@ -14,6 +14,15 @@
 
 #include <cstring>
 
+// Surface-return drop point -- where the camera lands when leaving a building
+// via the $0000 room marker.  From E1:6214-6216
+static constexpr int32_t SURFACE_RETURN_POS_X = 0x000867C0;
+static constexpr int32_t SURFACE_RETURN_POS_Y = 0x0040F480;
+static constexpr int32_t SURFACE_RETURN_POS_Z = 0x00087000;
+
+// Minimum clearance from room walls enforced by RoomBoundaryClamp (E1:6541-6566)
+static constexpr int16_t ROOM_WALL_MARGIN = 0x0020;
+
 static uint8_t *GetRoomData(uint16_t room)
 {
 	if (room == 0 || room >= gen_e3::ROOM_COUNT)
@@ -95,9 +104,9 @@ void RoomLoad(uint16_t room, uint8_t buildingIndex, ScriptVM &vm)
 		g_workspace.objs.currentRoom = 0;
 		cam.palBase89 = PAL_DEFAULT_89;
 		cam.palBase1011 = PAL_DEFAULT_1011;
-		cam.posX = 0x000867C0;
-		cam.posY = 0x0040F480;
-		cam.posZ = 0x00087000;
+		cam.posX = SURFACE_RETURN_POS_X;
+		cam.posY = SURFACE_RETURN_POS_Y;
+		cam.posZ = SURFACE_RETURN_POS_Z;
 		g_workspace.tileDetail.cachedPosX =
 			(g_workspace.tileDetail.cachedPosX & 0xFF00) | 0x00FF;
 		ObjectsBuildActiveList(g_workspace.objs);
@@ -422,22 +431,22 @@ bool RoomBoundaryClamp(Camera &cam)
 	bool clamped = false;
 
 	// E1:6541-6544: clamp X low bound
-	if (d1 <= 0x0020)
+	if (d1 <= ROOM_WALL_MARGIN)
 	{
-		d1 = 0x0020;
+		d1 = ROOM_WALL_MARGIN;
 		clamped = true;
 	}
 	// E1:6547-6550: clamp Z low bound
-	if (d2 <= 0x0020)
+	if (d2 <= ROOM_WALL_MARGIN)
 	{
-		d2 = 0x0020;
+		d2 = ROOM_WALL_MARGIN;
 		clamped = true;
 	}
 
 	// E1:6553-6558: clamp X high bound
 	// D3 = MOVE.W $061410 -> word-level extent, then SUBI.W #$20
 	int16_t extXWord = static_cast<int16_t>(g_workspace.vertLongX[0] & 0xFFFF);
-	int16_t xHigh = static_cast<int16_t>(extXWord - 0x0020);
+	int16_t xHigh = static_cast<int16_t>(extXWord - ROOM_WALL_MARGIN);
 	if (d1 > xHigh)
 	{
 		d1 = xHigh;
@@ -446,7 +455,7 @@ bool RoomBoundaryClamp(Camera &cam)
 
 	// E1:6561-6566: clamp Z high bound
 	int16_t extZWord = static_cast<int16_t>(g_workspace.vertLongZ[0] & 0xFFFF);
-	int16_t zHigh = static_cast<int16_t>(extZWord - 0x0020);
+	int16_t zHigh = static_cast<int16_t>(extZWord - ROOM_WALL_MARGIN);
 	if (d2 > zHigh)
 	{
 		d2 = zHigh;
