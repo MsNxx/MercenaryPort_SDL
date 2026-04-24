@@ -714,6 +714,10 @@ static void TickGameplay(Game &game, bool anyKeyDown, bool yKeyDown,
 	{
 		VBLHandler(game);
 		SaveLoadTick(game.saveLoad, game, slInput);
+		// Modal owns the keyboard while it's up; drop any game-action
+		// key that PollInput wrote to keyCommand this frame so it
+		// can't fire when the modal closes
+		g_workspace.keyCommand = Action::NONE;
 		return;
 	}
 

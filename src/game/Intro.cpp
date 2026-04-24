@@ -56,7 +56,12 @@ void IntroInit(IntroState &state, ScriptVM &vm, Benson &benson,
 {
 	state.phase = INTRO_PHASE_INIT_DELAY;
 	state.frameCount = 0;
-	state.mixerShadow = 0xFE; // from init preset dat_040E28
+
+	// Do NOT touch state.mixerShadow here.  The original's mixerShadow
+	// ($0624EA) is seeded only by the E2 data segment ($DA) and is modified
+	// only by BSET/BCLR on bits 1 and 4.  The $FE value in dat_040E28 is
+	// the INITIAL YM MIXER REGISTER write, not a shadow preset -- conflating
+	// the two mutes noise C (bit 5) for the rest of the run
 
 	BensonInit(benson);
 
@@ -106,11 +111,13 @@ bool IntroTick(IntroState &state, ScriptVM &vm, Benson &benson,
 		bool cameraActive = StarfieldAdvanceCamera(state.starfield);
 		StarfieldDraw(state.starfield, indexBuf);
 
-		// Engine sound: only when sub_0424E0 didn't return early
+		// Engine sound: only when sub_0424E0 didn't return early.
+		// $042538 writes $F8 to the YM mixer register directly without
+		// updating mixerShadow ($0624EA), so do not mirror it into the
+		// shadow here
 		if (audio != nullptr && cameraActive)
 		{
 			WriteEngineSoundRegs(*audio, state.starfield);
-			state.mixerShadow = 0xF8; // track what we wrote
 		}
 
 		BensonTick(benson, indexBuf, indexBuf, audio);
