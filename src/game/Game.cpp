@@ -712,6 +712,7 @@ static void TickGameplay(Game &game, bool anyKeyDown, bool yKeyDown,
 	// dialog (sub_045094 keyboard loop + sub_0450C0 frame wait)
 	if (SaveLoadActive(game.saveLoad))
 	{
+		g_workspace.keyCommand = Action::NONE;
 		VBLHandler(game);
 		SaveLoadTick(game.saveLoad, game, slInput);
 		return;
