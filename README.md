@@ -6,6 +6,8 @@ Have attempted to remain faithful to original architecture as much as possible.
 Provenance address scattered about in comments may not match all copies of the original.
 See also Mercenary Collection at https://mercenary.kiigan.com
 
+See DevUtils.h for handy overrides etc.
+
 - MsNxx
 
 ## Requirements
