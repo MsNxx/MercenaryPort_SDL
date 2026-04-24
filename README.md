@@ -3,7 +3,9 @@
 An educational C++ port of *Mercenary*, reconstructed from the Atari ST version.
 Original game by Paul Woakes and Novagen.
 Have attempted to remain faithful to original architecture as much as possible.
-Provenance address scattered about in comments may not match all copies of the original.
+Original addresses scattered about in comments may not match all copies of the original,
+but are remnants of original porting effort.
+
 See also Mercenary Collection at https://mercenary.kiigan.com
 
 See DevUtils.h for handy overrides etc.
